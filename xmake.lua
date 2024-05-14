@@ -1,4 +1,6 @@
-add_rules("mode.debug", "mode.release")
+add_rules("mode.debug", "mode.release", "mode.releasedbg")
+add_rules("plugin.vsxmake.autoupdate")
+add_requires("opencv")
 
 target("FindLineFromImage")
     add_rules("qt.widgetapp")
@@ -7,6 +9,7 @@ target("FindLineFromImage")
     add_files("src/mainwindow.ui")
     -- add files with Q_OBJECT meta (only for qt.moc)
     add_files("src/mainwindow.h")
+    add_packages("opencv")
 
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
