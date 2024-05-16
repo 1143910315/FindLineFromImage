@@ -65,6 +65,48 @@ MainWindow::MainWindow(QWidget *parent)
     auto positionList = Tools::findPeaks<float>(0, histSize, 0.1f, [&normalizeBlurHist](int position) {
         return normalizeBlurHist.at<float>(0, position);
     });
+
+    size_t value = 0;
+    for (size_t i = 0; i < positionList.size() / 2; i++) {
+        value += positionList[i * 2 + 1];
+    }
+    value /= positionList.size() / 2;
+    // 二值化处理
+    cv::Mat binaryImage;
+    cv::threshold(grayImage, binaryImage, value, 255, cv::THRESH_BINARY);
+
+    // 定义结构元素
+    cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+
+    // 开运算
+    cv::Mat openedImage;
+    cv::morphologyEx(binaryImage, openedImage, cv::MORPH_OPEN, element);
+
+    // 闭运算
+    cv::Mat closedImage;
+    cv::morphologyEx(binaryImage, closedImage, cv::MORPH_CLOSE, element);
+
+    // 膨胀
+    cv::Mat dilatedImage;
+    cv::dilate(binaryImage, dilatedImage, element);
+
+    // 腐蚀
+    cv::Mat erodedImage;
+    cv::erode(binaryImage, erodedImage, element);
+
+    // 连续运算
+    cv::Mat morphologicalImage = binaryImage.clone();
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+
+    // 进行均值滤波
+    cv::Mat blurImage;
+    cv::blur(grayImage, blurImage, cv::Size(20, 20));
+
     for (int num : positionList) {
         qDebug() << num;
     }
