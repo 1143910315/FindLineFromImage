@@ -1,6 +1,8 @@
 #include "mainwindow.h"
+#include "tools.h"
 #include "ui_mainwindow.h"
 #include <opencv2/opencv.hpp>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -35,23 +37,36 @@ MainWindow::MainWindow(QWidget *parent)
     cv::Mat hist;
     cv::calcHist(&grayImage, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
 
+    // 对一维的 cv::Mat 进行均值滤波
+    // cv::Mat blurHist;
+    // cv::blur(hist, blurHist, cv::Size(1, 5)); // 使用均值滤波
+
+    // 将直方图归一化到画布上
+    cv::Mat normalizeBlurHist;
+    cv::normalize(hist, normalizeBlurHist, 0, 1, cv::NORM_MINMAX);
+
     // 找到直方图中的最大值
-    double maxValue;
-    cv::minMaxLoc(hist, nullptr, &maxValue, nullptr, nullptr);
+    // double maxValue;
+    // cv::minMaxLoc(normalizeBlurHist, nullptr, &maxValue, nullptr, nullptr);
 
     int maxHeight = 500;
     // 创建直方图画布
     cv::Mat histImage(maxHeight, histSize, CV_8UC1, cv::Scalar(0));
 
-    // 将直方图归一化到画布上
-    // normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
-
     // 绘制直方图
     for (int i = 0; i < histSize; i++) {
         line(histImage,
              cv::Point(i, maxHeight - 1),
-             cv::Point(i, maxHeight - hist.at<float>(0, i) * maxHeight / maxValue),
-             cv::Scalar(255), 1);
+             cv::Point(i, maxHeight - normalizeBlurHist.at<float>(0, i) * maxHeight),
+             cv::Scalar(255),
+             1
+        );
+    }
+    auto positionList = Tools::findPeaks<float>(0, histSize, 0.1f, [&normalizeBlurHist](int position) {
+        return normalizeBlurHist.at<float>(0, position);
+    });
+    for (int num : positionList) {
+        qDebug() << num;
     }
 }
 
