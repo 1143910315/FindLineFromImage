@@ -20,6 +20,7 @@ private:
     void debugImage();
     void debugFind(int x, int y);
     void debugFindPreprocessingImage(int x, int y);
+    void debugSuperpositionFind(int x, int y);
 };
 
 #endif // MAINWINDOW_H

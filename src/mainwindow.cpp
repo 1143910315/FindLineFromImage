@@ -30,7 +30,7 @@ MainWindow::~MainWindow() {
 
 void MainWindow::initConnect() {
     connect(ui->label, &ClickableLabel::click, [this](int x, int y) {
-        debugFind(x, y);
+        debugSuperpositionFind(x, y);
     });
 }
 
@@ -194,7 +194,7 @@ void MainWindow::debugFind(int x, int y) {
             return true;
         }
         return false;
-    }, 20);
+    }, 20, 4);
 
     // 创建初始灰度为 127 的图像
     cv::Mat grayMapImage(grayImage.rows, grayImage.cols, CV_8UC1, cv::Scalar(127));
@@ -274,7 +274,95 @@ void MainWindow::debugFindPreprocessingImage(int x, int y) {
             return true;
         }
         return false;
-    }, 20);
+    }, 20, 3);
+
+    // 创建初始灰度为 127 的图像
+    cv::Mat grayMapImage(grayImage.rows, grayImage.cols, CV_8UC1, cv::Scalar(127));
+    findPathHelp.getMapData([&grayMapImage](int x, int y, bool allow) {
+        grayMapImage.at<unsigned char>(y, x) = allow ? 255 : 0;
+    });
+    qDebug() << "计算完毕";
+}
+
+void MainWindow::debugSuperpositionFind(int x, int y) {
+    static bool init = false;
+    // 读取图像
+    static cv::Mat grayImage = cv::imread("image/input_image.jpg", cv::IMREAD_GRAYSCALE);
+    if (grayImage.empty()) {
+        return;
+    }
+    // auto& color = colorImage.at<cv::Vec3b>(y, x);
+    // qDebug() << "R：" << static_cast<int>(color[0]) << "G：" << static_cast<int>(color[1]) << "B：" << static_cast<int>(color[2]);
+
+    // 进行均值滤波
+    static cv::Mat blurImage;
+    if (!init) {
+        cv::blur(grayImage, blurImage, cv::Size(10, 10));
+        // 连续运算
+        cv::Mat morphologicalImage = blurImage.clone();
+        cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+        cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+        cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4)));
+        cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4)));
+        cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+        cv::morphologyEx(morphologicalImage, blurImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+    }
+    init = true;
+    static auto findPathHelp = FindPath(blurImage.cols, blurImage.rows);
+    findPathHelp.start(x, y, [](int x, int y) {
+        // 定义感兴趣区域的矩形
+        cv::Rect roi(std::max(x - 80, 0), std::max(y - 80, 0), std::min(x + 80, blurImage.cols) - std::max(x - 80, 0), std::min(y + 80, blurImage.rows) - std::max(y - 80, 0));
+        // 获取感兴趣区域
+        cv::Mat roiImage = blurImage(roi);
+        // 计算直方图
+        int histSize = 256;     // 直方图的 bin 数量
+        float range[] = { 0, 256 };     // 像素值范围
+        const float *histRange = range;
+        cv::Mat hist;
+        cv::calcHist(&roiImage, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+        // 将直方图归一化
+        cv::Mat normalizeHist;
+        cv::normalize(hist, normalizeHist, 0, 1, cv::NORM_MINMAX);
+
+        // 对一维的 cv::Mat 进行均值滤波
+        // cv::Mat blurHist;
+        // cv::blur(normalizeHist, blurHist, cv::Size(1, 5)); // 使用均值滤波
+        //// 对一维的 cv::Mat 进行均值滤波
+        // cv::blur(blurHist, normalizeHist, cv::Size(1, 5)); // 使用均值滤波
+        //// 对一维的 cv::Mat 进行均值滤波
+        // cv::blur(normalizeHist, blurHist, cv::Size(1, 5)); // 使用均值滤波
+
+        //// 创建可视化直方图
+        // int maxHeight = 500;
+        //// 创建直方图画布
+        // cv::Mat histImage(maxHeight, histSize, CV_8UC1, cv::Scalar(0));
+        //// 绘制直方图
+        // for (int i = 0; i < histSize; i++) {
+        // line(histImage,
+        // cv::Point(i, maxHeight - 1),
+        // cv::Point(i, maxHeight - blurHist.at<float>(0, i) * maxHeight),
+        // cv::Scalar(255),
+        // 1
+        // );
+        // }
+        // 寻找峰值
+        auto positionList = Tools::findPeaks<float>(0, histSize, 0.1f, [&normalizeHist](int position) {
+            return normalizeHist.at<float>(0, position);
+        });
+        if (positionList.size() < 3) {
+            return false;
+        }
+        // 寻找鞍点中值
+        int value = 0;
+        for (size_t i = 0; i < positionList.size() / 2; i++) {
+            value += positionList[i * 2 + 1];
+        }
+        value /= positionList.size() / 2;
+        if (blurImage.at<unsigned char>(y, x) > value) {
+            return true;
+        }
+        return false;
+    }, 20, 4);
 
     // 创建初始灰度为 127 的图像
     cv::Mat grayMapImage(grayImage.rows, grayImage.cols, CV_8UC1, cv::Scalar(127));

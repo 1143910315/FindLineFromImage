@@ -9,15 +9,15 @@ FindPath::FindPath(int width, int height) : width(width), height(height) {
 FindPath::~FindPath() {
 }
 
-void FindPath::start(int startX, int startY, std::function<bool(int x, int y)> getMap, int pathPositionDistance) {
+void FindPath::start(int startX, int startY, std::function<bool(int x, int y)> getMap, int pathPositionDistance, int stepDistance) {
     if (needClear) {
         path.clear();
         pathPosition.clear();
-        for (auto& v : map) {
-            for (auto& i : v) {
-                i.reset();
-            }
-        }
+        // for (auto& v : map) {
+        // for (auto& i : v) {
+        // i.reset();
+        // }
+        // }
         for (auto& v : mapPositionToPath) {
             for (auto& i : v) {
                 i = -1;
@@ -48,174 +48,202 @@ void FindPath::start(int startX, int startY, std::function<bool(int x, int y)> g
         manhattanPosition.push_back(std::make_tuple(0, -dy));
     }
     manhattanPosition.push_back(std::make_tuple(0, 0));
-    path.push_back(Direction::none);
+    path.push_back(std::make_tuple(Direction::none, 0));
     pathPosition.push_back(std::make_tuple(startX, startY, std::set<int>()));
     mapPositionToPath[startX][startY] = 0;
     auto nowPosition = std::make_tuple(startX, startY);
     while (!path.empty()) {
+        auto pathSize = path.size();
         auto& [nowX, nowY] = nowPosition;
         int newX, newY;
         Direction direction;
         auto pathId = mapPositionToPath[nowX][nowY];
         auto& [pathPositionX, pathPositionY, link] = pathPosition[pathId];
-        newX = nowX;
-        newY = nowY - 1;
-        direction = Direction::up;
-        if (newY >= 0 && !map[newX][newY].has_value()) {
-            auto allow = getMap(newX, newY);
-            map[newX][newY] = allow;
-            if (allow) {
-                if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
-                    auto newPathId = mapPositionToPath[newX][newY];
-                    if (newPathId < 0) {
-                        link.insert(pathPosition.size());
-                        for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
-                            int manhattanX = newX + manhattanDx;
-                            int manhattanY = newY + manhattanDy;
-                            if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
-                                mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
-                            }
+        auto tempStep = stepDistance;
+        while (tempStep > 0) {
+            newX = nowX;
+            newY = nowY - tempStep;
+            direction = Direction::up;
+            if (newY >= 0 && !map[newX][newY].has_value()) {
+                auto allow = getMap(newX, newY);
+                for (int j = nowY; j >= newY; j--) {
+                    map[newX][j] = allow;
+                }
+                if (allow) {
+                    if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
+                        auto newPathId = -1;
+                        for (int j = nowY - 1; j >= newY && newPathId < 0; j--) {
+                            newPathId = mapPositionToPath[newX][j];
                         }
-                        pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
-                        nowPosition = std::make_tuple(newX, newY);
-                        path.push_back(direction);
-                        continue;
+                        if (newPathId < 0) {
+                            link.insert(pathPosition.size());
+                            for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
+                                int manhattanX = newX + manhattanDx;
+                                int manhattanY = newY + manhattanDy;
+                                if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
+                                    mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
+                                }
+                            }
+                            pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
+                            nowPosition = std::make_tuple(newX, newY);
+                            path.push_back(std::make_tuple(direction, tempStep));
+                            break;
+                        } else {
+                            link.insert(newPathId);
+                            std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        }
                     } else {
-                        link.insert(newPathId);
-                        std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        nowPosition = std::make_tuple(newX, newY);
+                        path.push_back(std::make_tuple(direction, tempStep));
+                        mapPositionToPath[newX][newY] = pathId;
+                        break;
                     }
-                } else {
-                    nowPosition = std::make_tuple(newX, newY);
-                    path.push_back(direction);
-                    mapPositionToPath[newX][newY] = pathId;
-                    continue;
                 }
             }
-        }
-        newX = nowX + 1;
-        newY = nowY;
-        direction = Direction::right;
-        if (newX < width && !map[newX][newY].has_value()) {
-            auto allow = getMap(newX, newY);
-            map[newX][newY] = allow;
-            if (allow) {
-                if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
-                    auto newPathId = mapPositionToPath[newX][newY];
-                    if (newPathId < 0) {
-                        link.insert(pathPosition.size());
-                        for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
-                            int manhattanX = newX + manhattanDx;
-                            int manhattanY = newY + manhattanDy;
-                            if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
-                                mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
-                            }
+            newX = nowX + tempStep;
+            newY = nowY;
+            direction = Direction::right;
+            if (newX < width && !map[newX][newY].has_value()) {
+                auto allow = getMap(newX, newY);
+                for (int i = nowX; i <= newX; i++) {
+                    map[i][newY] = allow;
+                }
+                if (allow) {
+                    if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
+                        auto newPathId = -1;
+                        for (int i = nowX + 1; i <= newX && newPathId < 0; i++) {
+                            newPathId = mapPositionToPath[i][nowY];
                         }
-                        pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
-                        nowPosition = std::make_tuple(newX, newY);
-                        path.push_back(direction);
-                        continue;
+                        if (newPathId < 0) {
+                            link.insert(pathPosition.size());
+                            for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
+                                int manhattanX = newX + manhattanDx;
+                                int manhattanY = newY + manhattanDy;
+                                if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
+                                    mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
+                                }
+                            }
+                            pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
+                            nowPosition = std::make_tuple(newX, newY);
+                            path.push_back(std::make_tuple(direction, tempStep));
+                            break;
+                        } else {
+                            link.insert(newPathId);
+                            std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        }
                     } else {
-                        link.insert(newPathId);
-                        std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        nowPosition = std::make_tuple(newX, newY);
+                        path.push_back(std::make_tuple(direction, tempStep));
+                        mapPositionToPath[newX][newY] = pathId;
+                        break;
                     }
-                } else {
-                    nowPosition = std::make_tuple(newX, newY);
-                    path.push_back(direction);
-                    mapPositionToPath[newX][newY] = pathId;
-                    continue;
                 }
             }
-        }
-        newX = nowX;
-        newY = nowY + 1;
-        direction = Direction::down;
-        if (newY < height && !map[newX][newY].has_value()) {
-            auto allow = getMap(newX, newY);
-            map[newX][newY] = allow;
-            if (allow) {
-                if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
-                    auto newPathId = mapPositionToPath[newX][newY];
-                    if (newPathId < 0) {
-                        link.insert(pathPosition.size());
-                        for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
-                            int manhattanX = newX + manhattanDx;
-                            int manhattanY = newY + manhattanDy;
-                            if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
-                                mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
-                            }
+            newX = nowX;
+            newY = nowY + tempStep;
+            direction = Direction::down;
+            if (newY < height && !map[newX][newY].has_value()) {
+                auto allow = getMap(newX, newY);
+                for (int j = nowY; j <= newY; j++) {
+                    map[newX][j] = allow;
+                }
+                if (allow) {
+                    if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
+                        auto newPathId = -1;
+                        for (int j = nowY + 1; j <= newY && newPathId < 0; j++) {
+                            newPathId = mapPositionToPath[newX][j];
                         }
-                        pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
-                        nowPosition = std::make_tuple(newX, newY);
-                        path.push_back(direction);
-                        continue;
+                        if (newPathId < 0) {
+                            link.insert(pathPosition.size());
+                            for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
+                                int manhattanX = newX + manhattanDx;
+                                int manhattanY = newY + manhattanDy;
+                                if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
+                                    mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
+                                }
+                            }
+                            pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
+                            nowPosition = std::make_tuple(newX, newY);
+                            path.push_back(std::make_tuple(direction, tempStep));
+                            break;
+                        } else {
+                            link.insert(newPathId);
+                            std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        }
                     } else {
-                        link.insert(newPathId);
-                        std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        nowPosition = std::make_tuple(newX, newY);
+                        path.push_back(std::make_tuple(direction, tempStep));
+                        mapPositionToPath[newX][newY] = pathId;
+                        break;
                     }
-                } else {
-                    nowPosition = std::make_tuple(newX, newY);
-                    path.push_back(direction);
-                    mapPositionToPath[newX][newY] = pathId;
-                    continue;
                 }
             }
-        }
-        newX = nowX - 1;
-        newY = nowY;
-        direction = Direction::left;
-        if (newX >= 0 && !map[newX][newY].has_value()) {
-            auto allow = getMap(newX, newY);
-            map[newX][newY] = allow;
-            if (allow) {
-                if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
-                    auto newPathId = mapPositionToPath[newX][newY];
-                    if (newPathId < 0) {
-                        link.insert(pathPosition.size());
-                        for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
-                            int manhattanX = newX + manhattanDx;
-                            int manhattanY = newY + manhattanDy;
-                            if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
-                                mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
-                            }
+            newX = nowX - tempStep;
+            newY = nowY;
+            direction = Direction::left;
+            if (newX >= 0 && !map[newX][newY].has_value()) {
+                auto allow = getMap(newX, newY);
+                for (int i = nowX; i >= newX; i--) {
+                    map[i][newY] = allow;
+                }
+                if (allow) {
+                    if (manhattanDistance(newX, newY, pathPositionX, pathPositionY) > pathPositionDistance) {
+                        auto newPathId = -1;
+                        for (int i = nowX; i >= newX && newPathId < 0; i--) {
+                            newPathId = mapPositionToPath[i][newY];
                         }
-                        pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
-                        nowPosition = std::make_tuple(newX, newY);
-                        path.push_back(direction);
-                        continue;
+                        if (newPathId < 0) {
+                            link.insert(pathPosition.size());
+                            for (auto& [manhattanDx, manhattanDy] : manhattanPosition) {
+                                int manhattanX = newX + manhattanDx;
+                                int manhattanY = newY + manhattanDy;
+                                if (manhattanX >= 0 && manhattanX < width && manhattanY >= 0 && manhattanY < height) {
+                                    mapPositionToPath[manhattanX][manhattanY] = pathPosition.size();
+                                }
+                            }
+                            pathPosition.push_back(std::make_tuple(newX, newY, std::set<int>({ pathId })));
+                            nowPosition = std::make_tuple(newX, newY);
+                            path.push_back(std::make_tuple(direction, tempStep));
+                            break;
+                        } else {
+                            link.insert(newPathId);
+                            std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        }
                     } else {
-                        link.insert(newPathId);
-                        std::get<2>(pathPosition[newPathId]).insert(pathId);
+                        nowPosition = std::make_tuple(newX, newY);
+                        path.push_back(std::make_tuple(direction, tempStep));
+                        mapPositionToPath[newX][newY] = pathId;
+                        break;
                     }
-                } else {
-                    nowPosition = std::make_tuple(newX, newY);
-                    path.push_back(direction);
-                    mapPositionToPath[newX][newY] = pathId;
-                    continue;
                 }
             }
+            tempStep--;
         }
-        switch (path.back()) {
-            case Direction::up: {
-                nowPosition = std::make_tuple(nowX, nowY + 1);
-                break;
+        if (pathSize == path.size()) {
+            auto& lastPath = path.back();
+            switch (std::get<0>(lastPath)) {
+                case Direction::up: {
+                    nowPosition = std::make_tuple(nowX, nowY + std::get<1>(lastPath));
+                    break;
+                }
+                case Direction::down: {
+                    nowPosition = std::make_tuple(nowX, nowY - std::get<1>(lastPath));
+                    break;
+                }
+                case Direction::left: {
+                    nowPosition = std::make_tuple(nowX + std::get<1>(lastPath), nowY);
+                    break;
+                }
+                case Direction::right: {
+                    nowPosition = std::make_tuple(nowX - std::get<1>(lastPath), nowY);
+                    break;
+                }
+                default: {
+                    break;
+                }
             }
-            case Direction::down: {
-                nowPosition = std::make_tuple(nowX, nowY - 1);
-                break;
-            }
-            case Direction::left: {
-                nowPosition = std::make_tuple(nowX + 1, nowY);
-                break;
-            }
-            case Direction::right: {
-                nowPosition = std::make_tuple(nowX - 1, nowY);
-                break;
-            }
-            default: {
-                break;
-            }
+            path.pop_back();
         }
-        path.pop_back();
     }
 }
 
