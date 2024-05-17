@@ -1,6 +1,8 @@
+#include "findpath.h"
 #include "mainwindow.h"
 #include "tools.h"
 #include "ui_mainwindow.h"
+#include <algorithm>
 #include <opencv2/opencv.hpp>
 #include <QDebug>
 
@@ -19,10 +21,17 @@ MainWindow::MainWindow(QWidget *parent)
         // 如果图片加载失败，可以在这里处理错误
         ui->label->setText(tr("无法载入图片"));
     }
+    initConnect();
 }
 
 MainWindow::~MainWindow() {
     delete ui;
+}
+
+void MainWindow::initConnect() {
+    connect(ui->label, &ClickableLabel::click, [this](int x, int y) {
+        debugFind(x, y);
+    });
 }
 
 void MainWindow::debugImage() {
@@ -40,7 +49,6 @@ void MainWindow::debugImage() {
     int histSize = 256; // 直方图的 bin 数量
     float range[] = { 0, 256 }; // 像素值范围
     const float *histRange = range;
-    bool uniform = true, accumulate = false;
     cv::Mat hist;
     cv::calcHist(&grayImage, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
 
@@ -117,4 +125,161 @@ void MainWindow::debugImage() {
     for (int num : positionList) {
         qDebug() << num;
     }
+}
+
+void MainWindow::debugFind(int x, int y) {
+    // 读取图像
+    cv::Mat grayImage = cv::imread("image/input_image.jpg", cv::IMREAD_GRAYSCALE);
+    if (grayImage.empty()) {
+        return;
+    }
+    // auto& color = colorImage.at<cv::Vec3b>(y, x);
+    // qDebug() << "R：" << static_cast<int>(color[0]) << "G：" << static_cast<int>(color[1]) << "B：" << static_cast<int>(color[2]);
+
+    // 进行均值滤波
+    cv::Mat blurImage;
+    cv::blur(grayImage, blurImage, cv::Size(10, 10));
+
+    auto findPathHelp = FindPath(blurImage.cols, blurImage.rows);
+    findPathHelp.start(x, y, [&blurImage](int x, int y) {
+        // 定义感兴趣区域的矩形
+        cv::Rect roi(std::max(x - 80, 0), std::max(y - 80, 0), std::min(x + 80, blurImage.cols) - std::max(x - 80, 0), std::min(y + 80, blurImage.rows) - std::max(y - 80, 0));
+        // 获取感兴趣区域
+        cv::Mat roiImage = blurImage(roi);
+        // 计算直方图
+        int histSize = 256;     // 直方图的 bin 数量
+        float range[] = { 0, 256 };     // 像素值范围
+        const float *histRange = range;
+        cv::Mat hist;
+        cv::calcHist(&roiImage, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+        // 将直方图归一化
+        cv::Mat normalizeHist;
+        cv::normalize(hist, normalizeHist, 0, 1, cv::NORM_MINMAX);
+
+        // 对一维的 cv::Mat 进行均值滤波
+        // cv::Mat blurHist;
+        // cv::blur(normalizeHist, blurHist, cv::Size(1, 5)); // 使用均值滤波
+        //// 对一维的 cv::Mat 进行均值滤波
+        // cv::blur(blurHist, normalizeHist, cv::Size(1, 5)); // 使用均值滤波
+        //// 对一维的 cv::Mat 进行均值滤波
+        // cv::blur(normalizeHist, blurHist, cv::Size(1, 5)); // 使用均值滤波
+
+        //// 创建可视化直方图
+        // int maxHeight = 500;
+        //// 创建直方图画布
+        // cv::Mat histImage(maxHeight, histSize, CV_8UC1, cv::Scalar(0));
+        //// 绘制直方图
+        // for (int i = 0; i < histSize; i++) {
+        // line(histImage,
+        // cv::Point(i, maxHeight - 1),
+        // cv::Point(i, maxHeight - blurHist.at<float>(0, i) * maxHeight),
+        // cv::Scalar(255),
+        // 1
+        // );
+        // }
+        // 寻找峰值
+        auto positionList = Tools::findPeaks<float>(0, histSize, 0.1f, [&normalizeHist](int position) {
+            return normalizeHist.at<float>(0, position);
+        });
+        if (positionList.size() < 3) {
+            return false;
+        }
+        // 寻找鞍点中值
+        int value = 0;
+        for (size_t i = 0; i < positionList.size() / 2; i++) {
+            value += positionList[i * 2 + 1];
+        }
+        value /= positionList.size() / 2;
+        if (blurImage.at<unsigned char>(y, x) > value) {
+            return true;
+        }
+        return false;
+    }, 20);
+
+    // 创建初始灰度为 127 的图像
+    cv::Mat grayMapImage(grayImage.rows, grayImage.cols, CV_8UC1, cv::Scalar(127));
+    findPathHelp.getMapData([&grayMapImage](int x, int y, bool allow) {
+        grayMapImage.at<unsigned char>(y, x) = allow ? 255 : 0;
+    });
+    qDebug() << "计算完毕";
+}
+
+void MainWindow::debugFindPreprocessingImage(int x, int y) {
+    // 读取图像
+    cv::Mat colorImage = cv::imread("image/input_image.jpg");
+
+    if (colorImage.empty()) {
+        return;
+    }
+    // 将彩色图像转换为灰度图像
+    cv::Mat grayImage;
+    cv::cvtColor(colorImage, grayImage, cv::COLOR_BGR2GRAY);
+
+    // 计算直方图
+    int histSize = 256;     // 直方图的 bin 数量
+    float range[] = { 0, 256 };     // 像素值范围
+    const float *histRange = range;
+    cv::Mat hist;
+    cv::calcHist(&grayImage, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange);
+
+    // 对一维的 cv::Mat 进行均值滤波
+    // cv::Mat blurHist;
+    // cv::blur(hist, blurHist, cv::Size(1, 5)); // 使用均值滤波
+
+    // 将直方图归一化到画布上
+    cv::Mat normalizeBlurHist;
+    cv::normalize(hist, normalizeBlurHist, 0, 1, cv::NORM_MINMAX);
+
+    // 找到直方图中的最大值
+    // double maxValue;
+    // cv::minMaxLoc(normalizeBlurHist, nullptr, &maxValue, nullptr, nullptr);
+
+    int maxHeight = 500;
+    // 创建直方图画布
+    cv::Mat histImage(maxHeight, histSize, CV_8UC1, cv::Scalar(0));
+
+    // 绘制直方图
+    for (int i = 0; i < histSize; i++) {
+        line(histImage,
+             cv::Point(i, maxHeight - 1),
+             cv::Point(i, maxHeight - normalizeBlurHist.at<float>(0, i) * maxHeight),
+             cv::Scalar(255),
+             1
+        );
+    }
+    auto positionList = Tools::findPeaks<float>(0, histSize, 0.1f, [&normalizeBlurHist](int position) {
+        return normalizeBlurHist.at<float>(0, position);
+    });
+
+    size_t value = 0;
+    for (size_t i = 0; i < positionList.size() / 2; i++) {
+        value += positionList[i * 2 + 1];
+    }
+    value /= positionList.size() / 2;
+    // 二值化处理
+    cv::Mat binaryImage;
+    cv::threshold(grayImage, binaryImage, value, 255, cv::THRESH_BINARY);
+
+    // 连续运算
+    cv::Mat morphologicalImage = binaryImage.clone();
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(4, 4)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+    cv::morphologyEx(morphologicalImage, morphologicalImage, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5)));
+    auto findPathHelp = FindPath(morphologicalImage.cols, morphologicalImage.rows);
+    findPathHelp.start(x, y, [&morphologicalImage](int x, int y) {
+        if (morphologicalImage.at<unsigned char>(y, x) > 127) {
+            return true;
+        }
+        return false;
+    }, 20);
+
+    // 创建初始灰度为 127 的图像
+    cv::Mat grayMapImage(grayImage.rows, grayImage.cols, CV_8UC1, cv::Scalar(127));
+    findPathHelp.getMapData([&grayMapImage](int x, int y, bool allow) {
+        grayMapImage.at<unsigned char>(y, x) = allow ? 255 : 0;
+    });
+    qDebug() << "计算完毕";
 }

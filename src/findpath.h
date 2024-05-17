@@ -14,6 +14,7 @@ public:
     FindPath(int width, int height);
     ~FindPath();
     void start(int startX, int startY, std::function<bool(int x, int y)> getMap, int pathPositionDistance);
+    void getMapData(std::function<void(int x, int y, bool allow)> mapData);
 private:
     const int width;
     const int height;

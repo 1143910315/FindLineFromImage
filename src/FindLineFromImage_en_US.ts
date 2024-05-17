@@ -9,7 +9,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="mainwindow.cpp" line="20"/>
+        <location filename="mainwindow.cpp" line="22"/>
         <source>无法载入图片</source>
         <translation type="unfinished"></translation>
     </message>
