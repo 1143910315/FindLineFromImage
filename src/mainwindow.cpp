@@ -19,10 +19,17 @@ MainWindow::MainWindow(QWidget *parent)
         // 如果图片加载失败，可以在这里处理错误
         ui->label->setText(tr("无法载入图片"));
     }
+}
+
+MainWindow::~MainWindow() {
+    delete ui;
+}
+
+void MainWindow::debugImage() {
     // 读取图像
     cv::Mat colorImage = cv::imread("image/input_image.jpg");
 
-    if (image.isNull()) {
+    if (colorImage.empty()) {
         return;
     }
     // 将彩色图像转换为灰度图像
@@ -110,8 +117,4 @@ MainWindow::MainWindow(QWidget *parent)
     for (int num : positionList) {
         qDebug() << num;
     }
-}
-
-MainWindow::~MainWindow() {
-    delete ui;
 }

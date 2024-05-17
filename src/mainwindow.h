@@ -17,6 +17,7 @@ public:
 
 private:
     Ui::MainWindow *ui;
+    void debugImage();
 };
 
 #endif // MAINWINDOW_H
