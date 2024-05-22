@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 set_runtimes("MT")
-add_requires("opencv")
+add_requires("opencv","rxcpp")
 
 target("FindLineFromImage")
     set_languages("c17", "cxx20")
@@ -12,7 +12,7 @@ target("FindLineFromImage")
     add_files("src/*.ui")
     add_files("src/*.ts")
     add_files("src/*.h")
-    add_packages("opencv")
+    add_packages("opencv","rxcpp")
 
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
