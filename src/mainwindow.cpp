@@ -1,5 +1,6 @@
-#include "findpath.h"
 #include "mainwindow.h"
+
+#include "findpath.h"
 #include "tools.h"
 #include "ui_mainwindow.h"
 #include <algorithm>

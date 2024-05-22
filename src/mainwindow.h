@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "pathfindingvisualizer.h"
 #include <QMainWindow>
 #include <vector>
 
@@ -16,6 +17,7 @@ public:
     ~MainWindow();
 private:
     Ui::MainWindow *ui;
+    PathFindingVisualizer pathFindingVisualizer;
     void initConnect();
     void debugImage();
     void debugFind(int x, int y);
