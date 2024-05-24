@@ -26,8 +26,8 @@ public:
     void getMapData(std::function<void(int x, int y, bool allow)> mapData);
     const std::vector<std::tuple<Direction, int>>& getPath();
 private:
-    const int width;
-    const int height;
+    int width;
+    int height;
     std::vector<std::vector<std::optional<bool>>> map;
     std::vector<std::vector<int>> mapPositionToPath;
     std::vector<std::tuple<int, int, std::set<int>>> pathPosition;

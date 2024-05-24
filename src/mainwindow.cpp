@@ -11,27 +11,56 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
     ui(new Ui::MainWindow) {
     ui->setupUi(this);
-    QImage image("image/input_image.jpg");
+    souceImage = QImage("image/input_image.jpg");
     // 检查图片是否成功加载
-    if (!image.isNull()) {
+    if (!souceImage.isNull()) {
         // 将QImage转换为QPixmap，因为QLabel的setPixmap方法需要一个QPixmap对象
-        QPixmap pixmap = QPixmap::fromImage(image);
+        QPixmap pixmap = QPixmap::fromImage(souceImage);
         // 设置标签的图片
         ui->label->setPixmap(pixmap);
     } else {
         // 如果图片加载失败，可以在这里处理错误
         ui->label->setText(tr("无法载入图片"));
     }
+    pathFindingVisualizer.moveToThread(&findPathThread);
     initConnect();
+    findPathThread.start();
 }
 
 MainWindow::~MainWindow() {
     delete ui;
 }
 
+void MainWindow::showStep(std::vector<std::tuple<int, int, FindPath::Direction>> path, std::vector<std::vector<std::tuple<int, int, FindPath::FailReason>>> positionFailReason) {
+    auto copyImage = souceImage.copy();
+    for (auto& [x, y, direction] : path) {
+        copyImage.setPixelColor(x, y, QColor::fromRgb(252, 41, 41));
+    }
+    for (auto& vectorMap : positionFailReason) {
+        for (auto& [x, y, reason] : vectorMap) {
+            switch (reason) {
+                case FindPath::FailReason::notAllow: {
+                    copyImage.setPixelColor(x, y, QColor::fromRgb(0, 0, 0));
+                    break;
+                } case FindPath::FailReason::otherPath: {
+                    copyImage.setPixelColor(x, y, QColor::fromRgb(41, 41, 252));
+                    break;
+                }
+                default: {
+                    break;
+                }
+            }
+        }
+    }
+    ui->label->setPixmap(QPixmap::fromImage(copyImage));
+}
+
 void MainWindow::initConnect() {
+    connect(this, &MainWindow::debugPathFindingVisualizer, &pathFindingVisualizer, &PathFindingVisualizer::beginFindFromPosition);
+    connect(&pathFindingVisualizer, &PathFindingVisualizer::step, this, &MainWindow::showStep);
     connect(ui->label, &ClickableLabel::click, [this](int x, int y) {
-        debugSuperpositionFind(x, y);
+        // debugSuperpositionFind(x, y);
+        emit debugPathFindingVisualizer(x, y);
     });
 }
 

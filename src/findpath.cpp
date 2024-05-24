@@ -13,6 +13,8 @@ FindPath::~FindPath() {
 }
 
 void FindPath::init(int width, int height) {
+    this->width = width;
+    this->height = height;
     map = std::vector(width, std::vector(height, std::optional<bool>()));
     mapPositionToPath = std::vector(width, std::vector(height, -1));
     needClear = false;

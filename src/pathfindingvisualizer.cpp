@@ -4,7 +4,7 @@
 #include <QDebug>
 
 PathFindingVisualizer::PathFindingVisualizer(QObject *parent)
-    : QThread(parent) {
+    : QObject(parent) {
     cv::Mat grayImage = cv::imread("image/input_image.jpg", cv::IMREAD_GRAYSCALE);
     if (grayImage.empty()) {
         return;
@@ -34,15 +34,9 @@ PathFindingVisualizer::PathFindingVisualizer(QObject *parent)
 PathFindingVisualizer::~PathFindingVisualizer() {
 }
 
-void PathFindingVisualizer::beginFindFromPosition(int x, int y) {
-    this->x = x;
-    this->y = y;
-    start();
-}
-
-void PathFindingVisualizer::run() {
+void PathFindingVisualizer::beginFindFromPosition(int beginX, int beginY) {
     positionFailReason.push_back({});
-    findPath.startVisualization(x, y, 20, 4, [this](int x, int y) {
+    findPath.startVisualization(beginX, beginY, 20, 4, [this](int x, int y) {
         // 定义感兴趣区域的矩形
         cv::Rect roi(std::max(x - 80, 0), std::max(y - 80, 0), std::min(x + 80, cvImage.cols) - std::max(x - 80, 0), std::min(y + 80, cvImage.rows) - std::max(y - 80, 0));
         // 获取感兴趣区域
@@ -98,11 +92,11 @@ void PathFindingVisualizer::run() {
         return false;
     }, [this](int x, int y, FindPath::FailReason failReason) {
         positionFailReason[positionFailReason.size() - 1].push_back(std::make_tuple(x, y, failReason));
-    }, [this]() {
+    }, [this, beginX = beginX, beginY = beginY]() {
         auto& path = findPath.getPath();
         std::vector<std::tuple<int, int, FindPath::Direction>> pathList;
-        auto nowX = x;
-        auto nowY = y;
+        auto nowX = beginX;
+        auto nowY = beginY;
         for (auto& [direction, distance] : path) {
             switch (direction) {
                 case FindPath::Direction::up: {
@@ -140,6 +134,7 @@ void PathFindingVisualizer::run() {
             }
         }
         emit step(pathList, positionFailReason);
+        QThread::msleep(20);
     });
 
     // 创建初始灰度为 127 的图像
